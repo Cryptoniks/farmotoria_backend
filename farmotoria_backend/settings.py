@@ -9,6 +9,9 @@ https://docs.djangoproject.com/en/6.0/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
+import dj_database_url
+import os
+
 from datetime import timedelta
 from pathlib import Path
 
@@ -23,9 +26,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-9#pixtigy6yae!!t+8l*llm9!o#^0+yhy&=6cy(#s4z1f#(%@t'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -85,16 +88,8 @@ WSGI_APPLICATION = 'farmotoria_backend.wsgi.application'
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'farmotoria_db',      # имя базы из pgAdmin
-        'USER': 'postgres',           # пользователь БД
-        'PASSWORD': 'postgres',    # пароль, который задал при установке
-        'HOST': 'localhost',
-        'PORT': '5432',
-    }
+    'default': dj_database_url.parse(os.environ.get('postgresql://farmotoria_db_user:WGMVaJI1FfUwLtyhhtL8kH8hVBqY7Rxl@dpg-d5jmci24d50c73d3r710-a/farmotoria_db'))
 }
-
 
 
 # Password validation
@@ -136,6 +131,8 @@ STATIC_URL = 'static/'
 CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
     "http://localhost:5173",
+    "https://farmotoria-frontend.vercel.app",
+    "http://farmotoria.online"
 ]
 
 SIMPLE_JWT = {
