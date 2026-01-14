@@ -88,7 +88,7 @@ WSGI_APPLICATION = 'farmotoria_backend.wsgi.application'
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 DATABASES = {
-    'default': dj_database_url.parse(os.environ.get('postgresql://farmotoria_db_user:WGMVaJI1FfUwLtyhhtL8kH8hVBqY7Rxl@dpg-d5jmci24d50c73d3r710-a/farmotoria_db'))
+    'default': dj_database_url.parse(os.environ.get('DATABASE_URL'))
 }
 
 
