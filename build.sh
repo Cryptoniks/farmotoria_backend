@@ -3,13 +3,12 @@
 pip install -r requirements.txt
 
 # Collect static files
-python manage.py collectstatic --noinput
+python manage.py collectstatic --noinput --clear
 
 # Run migrations
 RUN_MIGRATIONS=true
 python manage.py migrate
 
-# Create superuser (только первый запуск)
 if [ "$CREATE_SUPERUSER" = "true" ]; then
   python manage.py shell << EOF
 from django.contrib.auth import get_user_model
