@@ -1,24 +1,30 @@
 #!/usr/bin/env bash
 pip install -r requirements.txt
-
-python manage.py collectstatic --noinput || echo "⚠️ collectstatic skipped"
+python manage.py collectstatic --noinput || echo "⚠️ Static skipped"
 
 RUN_MIGRATIONS=true
 python manage.py migrate
 
-# ✅ Отладка + superuser
 echo "🔍 CREATE_SUPERUSER='$CREATE_SUPERUSER'"
 echo "🔍 USERNAME='$DJANGO_SUPERUSER_USERNAME'"
 
-if [ "$CREATE_SUPERUSER" = "true" ]; then
+# ✅ Фикс heredoc: отдельный файл
+if [ "$CREATE_SUPERUSER" = "true" ] || [ "$CREATE_SUPERUSER" = "True" ]; then
   echo "🚀 Создаём superuser..."
-  python manage.py shell << EOF
+  cat > /tmp/superuser.py << EOF
 from django.contrib.auth import get_user_model
 User = get_user_model()
-if not User.objects.filter(username='$DJANGO_SUPERUSER_USERNAME').exists():
-    User.objects.create_superuser('$DJANGO_SUPERUSER_USERNAME', '$DJANGO_SUPERUSER_EMAIL', '$DJANGO_SUPERUSER_PASSWORD')
-    print("✅ Superuser '$DJANGO_SUPERUSER_USERNAME' создан!")
+username = '$DJANGO_SUPERUSER_USERNAME'
+email = '$DJANGO_SUPERUSER_EMAIL'
+password = '$DJANGO_SUPERUSER_PASSWORD'
+if not User.objects.filter(username=username).exists():
+    User.objects.create_superuser(username, email, password)
+    print(f"✅ Superuser '{username}' создан!")
 else:
-    print("⚠️ Superuser уже существует")
+    print(f"⚠️ Superuser '{username}' уже существует")
 EOF
+  python manage.py shell < /tmp/superuser.py
+  rm /tmp/superuser.py
+else
+  echo "⏭️ CREATE_SUPERUSER=off"
 fi
