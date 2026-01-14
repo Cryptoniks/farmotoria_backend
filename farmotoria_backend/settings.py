@@ -134,7 +134,8 @@ CORS_ALLOWED_ORIGINS = [
     "https://farmotoria-frontend.vercel.app",
     "https://farmotoria-frontend-git-main-cryptoniks.vercel.app",
     "https://farmotoria-frontend-49zxngw2v-cryptoniks-projects.vercel.app",
-    "http://farmotoria.online"
+    "http://farmotoria.online",
+    "https://farmotoria.online"
 ]
 
 SIMPLE_JWT = {
