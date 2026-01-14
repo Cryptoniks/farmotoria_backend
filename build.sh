@@ -3,7 +3,8 @@
 pip install -r requirements.txt
 
 # Collect static files
-python manage.py collectstatic --noinput --clear
+rm -rf staticfiles/
+python manage.py collectstatic --noinput --clear --verbosity=1
 
 # Run migrations
 RUN_MIGRATIONS=true
