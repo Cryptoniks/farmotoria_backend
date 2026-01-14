@@ -132,6 +132,8 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
     "http://localhost:5173",
     "https://farmotoria-frontend.vercel.app",
+    "https://farmotoria-frontend-git-main-cryptoniks.vercel.app",
+    "https://farmotoria-frontend-49zxngw2v-cryptoniks-projects.vercel.app",
     "http://farmotoria.online"
 ]
 
