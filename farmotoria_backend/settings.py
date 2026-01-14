@@ -128,6 +128,9 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_DIRS = [
+    BASE_DIR / 'static',
+]
 
 CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",

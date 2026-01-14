@@ -1,5 +1,7 @@
 from django.contrib import admin
 from django.urls import path
+from django.conf import settings
+from django.conf.urls.static import static
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from game.views import (
@@ -43,3 +45,6 @@ urlpatterns = [
     path("api/market/inventory/", market_inventory, name="market-inventory"),
     path("api/market/sell/", SellItemView.as_view()),
 ]
+
+if not settings.DEBUG:
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
