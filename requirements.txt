@@ -11,6 +11,7 @@ tzdata==2025.3
 gunicorn==21.2.0
 dj-database-url==2.1.0
 APScheduler==3.10.4
+python-dotenv==1.0.1
 
 # Security
 django-ratelimit==4.1.0
