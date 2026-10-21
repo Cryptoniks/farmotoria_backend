@@ -1,0 +1,21 @@
+# Render Blueprint (необязательно): Dashboard → New → Blueprint → этот репозиторий.
+# Если сервис farmotoria-backend уже создан вручную, достаточно проверить, что в его настройках
+# Runtime = Docker, Dockerfile Path = ./Dockerfile.render, Health Check Path = /api/farmotoria/ping/
+services:
+  - type: web
+    name: farmotoria-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile.render
+    plan: free
+    region: frankfurt
+    healthCheckPath: /api/farmotoria/ping/
+    autoDeploy: true
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false   # строка подключения Neon (pooled, ?sslmode=require)
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false   # адрес фронтенда на Vercel, например https://farmotoria.vercel.app
+      - key: CORS_ALLOWED_ORIGIN_REGEXES
+        sync: false   # необязательно: ^https://farmotoria-.*\.vercel\.app$

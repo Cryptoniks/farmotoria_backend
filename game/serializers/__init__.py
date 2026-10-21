@@ -1,18 +1,11 @@
-# Serializers - reexport for compatibility
-from .auth import RegisterSerializer, PlayerProfileSerializer
-from .shop import (
-    ItemCategorySerializer, ShopItemSerializer,
-    InventoryItemSerializer, MarketItemSerializer
-)
-from .farm import FarmFieldSerializer, CellSerializer
+from .auth import MeUpdateSerializer, PlayerProfileSerializer, RegisterSerializer
+from .shop import InventoryItemSerializer, ItemCategorySerializer, ShopItemSerializer
 
 __all__ = [
     "RegisterSerializer",
+    "MeUpdateSerializer",
     "PlayerProfileSerializer",
     "ItemCategorySerializer",
     "ShopItemSerializer",
     "InventoryItemSerializer",
-    "MarketItemSerializer",
-    "FarmFieldSerializer",
-    "CellSerializer",
 ]

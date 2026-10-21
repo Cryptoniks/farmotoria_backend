@@ -30,13 +30,3 @@ class InventoryItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = InventoryItem
         fields = ("id", "item", "quantity")
-
-
-class MarketItemSerializer(serializers.ModelSerializer):
-    name = serializers.CharField(source="item.name", read_only=True)
-    sell_price_coins = serializers.IntegerField(source="item.price_coins", read_only=True)
-    item_slug = serializers.CharField(source="item.slug", read_only=True)
-
-    class Meta:
-        model = InventoryItem
-        fields = ("id", "name", "sell_price_coins", "quantity", "item_slug")

@@ -1,75 +1,96 @@
 from rest_framework import generics
 from rest_framework.response import Response
-from rest_framework.views import APIView
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
 
-from ..models import ShopItem
-from ..serializers import ShopItemSerializer
+from ..models import InventoryItem, ShopItem
+from ..serializers import InventoryItemSerializer, ShopItemSerializer
+from ..services import inventory
+from ..services.extraction import accrue
+from ..services.player import get_profile
+from .base import GameAPIView
+
+SHOP_ITEMS = ShopItem.objects.select_related("category", "harvest_item")
 
 
+# ---------------------------------------------------------------- магазин ----
 class ShopItemListView(generics.ListAPIView):
-    queryset = ShopItem.objects.all().order_by("id")
+    queryset = SHOP_ITEMS.order_by("id")
     serializer_class = ShopItemSerializer
-    permission_classes = [IsAuthenticated]
 
 
 class ShopSeedsListView(generics.ListAPIView):
-    queryset = ShopItem.objects.filter(is_seed=True).order_by("price_coins")
+    queryset = SHOP_ITEMS.filter(is_seed=True).order_by("price_coins")
     serializer_class = ShopItemSerializer
-    permission_classes = [IsAuthenticated]
 
 
 class ShopHarvestListView(generics.ListAPIView):
-    queryset = ShopItem.objects.filter(is_harvest=True).order_by("price_coins")
+    queryset = SHOP_ITEMS.filter(is_harvest=True).order_by("price_coins")
     serializer_class = ShopItemSerializer
-    permission_classes = [IsAuthenticated]
 
 
-class ShopByCategoryView(generics.ListAPIView):
-    serializer_class = ShopItemSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        category_name = self.kwargs["category"]
-        return ShopItem.objects.filter(category__name=category_name).order_by("price_coins")
-
-
-class PlantListView(generics.ListAPIView):
-    queryset = ShopItem.objects.filter(is_seed=True).select_related("harvest_item")
-    serializer_class = ShopItemSerializer
-    permission_classes = [IsAuthenticated]
-
-
-@api_view(["POST"])
-@permission_classes([IsAuthenticated])
-def buy_item(request):
-    from ..models import PlayerProfile, InventoryItem
-    
-    item_id = request.data.get("item_id")
-    qty = int(request.data.get("quantity", 1))
-
-    try:
-        item = ShopItem.objects.get(id=item_id)
-    except ShopItem.DoesNotExist:
-        return Response({"detail": f"Товар ID={item_id} не найден"}, status=404)
-
-    profile, _ = PlayerProfile.objects.get_or_create(user=request.user)
-    total_price = item.buy_price * qty
-
-    if profile.coins_balance < total_price:
+class BuyItemView(GameAPIView):
+    def post(self, request):
+        profile, item, qty, total = inventory.buy_item(
+            request.user, request.data.get("item_id"), request.data.get("quantity", 1)
+        )
         return Response({
-            "detail": f"Недостаточно монет! Нужно: {total_price}, есть: {profile.coins_balance}"
-        }, status=400)
+            "coins_balance": profile.coins_balance,
+            "message": f"✅ Куплено {qty}×{item.name} за {total} монет",
+        })
 
-    profile.coins_balance -= total_price
-    profile.save()
 
-    inv_item, _ = InventoryItem.objects.get_or_create(player=profile, item=item)
-    inv_item.quantity += qty
-    inv_item.save()
+# -------------------------------------------------------- инвентарь/рынок ----
+class InventoryView(GameAPIView):
+    def get(self, request):
+        profile = get_profile(request.user)
+        accrue(profile)
+        items = InventoryItem.objects.filter(player=profile, quantity__gt=0).select_related(
+            "item__category", "item__harvest_item"
+        )
+        return Response(InventoryItemSerializer(items, many=True).data)
 
-    return Response({
-        "coins_balance": profile.coins_balance,
-        "message": f"✅ Куплено {qty}×{item.name} за {total_price} монет"
-    })
+
+class ResourcesInventoryView(GameAPIView):
+    def get(self, request):
+        profile = get_profile(request.user)
+        accrue(profile)
+        items = InventoryItem.objects.filter(
+            player=profile, item__is_resource=True, quantity__gt=0
+        ).select_related("item__category", "item__harvest_item")
+        return Response(InventoryItemSerializer(items, many=True).data)
+
+
+class MarketInventoryView(GameAPIView):
+    """Все товары, кроме семян, с количеством в инвентаре игрока."""
+
+    def get(self, request):
+        profile = get_profile(request.user)
+        accrue(profile)
+        stock = dict(InventoryItem.objects.filter(player=profile).values_list("item_id", "quantity"))
+        items = ShopItem.objects.filter(is_seed=False).select_related("category").order_by(
+            "category__name", "name"
+        )
+        return Response([
+            {
+                "id": item.id,
+                "name": item.name,
+                "sell_price_coins": item.price_coins,
+                "item_slug": item.slug,
+                "quantity": stock.get(item.id, 0),
+                "item_type": "harvest" if item.is_harvest else ("resource" if item.is_resource else "product"),
+                "category_name": item.category.name if item.category_id else "Без категории",
+            }
+            for item in items
+        ])
+
+
+class SellItemView(GameAPIView):
+    def post(self, request):
+        profile, item, qty, total = inventory.sell_item(
+            request.user, request.data.get("item_id"), request.data.get("quantity", 1)
+        )
+        return Response({
+            "coins_balance": profile.coins_balance,
+            "sold": qty,
+            "total_earned": total,
+            "message": f"Продано {qty}×{item.name} за {total} монет",
+        })

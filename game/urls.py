@@ -1,117 +1,50 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
-from .views import (
-    # auth
-    FarmotoriaPingView,
-    RegisterView,
-    MeView,
-    
-    # farm
-    FarmFieldView,
-    ExpandFieldView,
-    PlaceObjectView,
-    PlaceBuildingView,
-    RemoveBuildingView,
-    UnlockAreaView,
-    CellListView,
-    
-    # shop
-    ShopItemListView,
-    ShopSeedsListView,
-    ShopHarvestListView,
-    PlantListView,
-    ShopByCategoryView,
-    buy_item,
-    
-    # inventory
-    InventoryView,
-    market_inventory,
-    resources_inventory,
-    SellItemView,
-    
-    # iso
-    IsoFieldStateView,
-    IsoExpandChunkView,
-    IsoAvailableChunksView,
-    IsoPlaceBuildingView,
-    IsoRemoveBuildingView,
-    IsoPlantSeedView,
-    IsoHarvestView,
-    IsoFieldPlotsView,
-    IsoMoveBuildingView,
-    IsoMoveBuildingsBatchView,
-    ExtractionStartView,
-    ExtractionStatusView,
-    ExtractionCollectView,
-    ExtractionStopView,
-    ProcessingRecipesView,
-    ProcessingStartView,
-    ProcessingStatusView,
-    ProcessingCollectView,
-    ProcessingStopView,
-)
+from .views import auth, field, production, shop
 
 urlpatterns = [
-    # ping
-    path("farmotoria/ping/", FarmotoriaPingView.as_view(), name="ping"),
+    # служебное
+    path("farmotoria/ping/", auth.FarmotoriaPingView.as_view(), name="ping"),
 
-    # auth
-    path("auth/register/", RegisterView.as_view(), name="register"),
+    # авторизация и профиль
+    path("auth/register/", auth.RegisterView.as_view(), name="register"),
     path("auth/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path("me/", auth.MeView.as_view(), name="me"),
 
-    # profile
-    path("me/", MeView.as_view(), name="me"),
+    # магазин, инвентарь, рынок
+    path("shop/items/", shop.ShopItemListView.as_view(), name="shop-items"),
+    path("shop/seeds/", shop.ShopSeedsListView.as_view(), name="shop-seeds"),
+    path("shop/harvest/", shop.ShopHarvestListView.as_view(), name="shop-harvest"),
+    path("shop/buy/", shop.BuyItemView.as_view(), name="shop-buy"),
+    path("inventory/", shop.InventoryView.as_view(), name="inventory"),
+    path("inventory/resources/", shop.ResourcesInventoryView.as_view(), name="resources-inventory"),
+    path("market/inventory/", shop.MarketInventoryView.as_view(), name="market-inventory"),
+    path("market/sell/", shop.SellItemView.as_view(), name="market-sell"),
 
-    # field
-    path("field/", FarmFieldView.as_view(), name="farm-field"),
-    path("field/expand/", ExpandFieldView.as_view(), name="expand-field"),
-    path("field/place/", PlaceObjectView.as_view(), name="place-object"),
-    path("field/unlock-area/", UnlockAreaView.as_view(), name="unlock-area"),
-    path("field/place-building/", PlaceBuildingView.as_view(), name="place-building"),
-    path("field/remove-building/", RemoveBuildingView.as_view(), name="remove-building"),
+    # изометрическое поле
+    path("iso/field/", field.IsoFieldStateView.as_view(), name="iso-field"),
+    path("iso/available-chunks/", field.IsoAvailableChunksView.as_view(), name="iso-available-chunks"),
+    path("iso/expand-chunk/", field.IsoExpandChunkView.as_view(), name="iso-expand-chunk"),
+    path("iso/place-building/", field.IsoPlaceBuildingView.as_view(), name="iso-place-building"),
+    path("iso/remove-building/", field.IsoRemoveBuildingView.as_view(), name="iso-remove-building"),
+    path("iso/move-building/", field.IsoMoveBuildingView.as_view(), name="iso-move-building"),
+    path("iso/move-buildings/", field.IsoMoveBuildingsBatchView.as_view(), name="iso-move-buildings"),
+    path("iso/plant-seed/", field.IsoPlantSeedView.as_view(), name="iso-plant-seed"),
+    path("iso/harvest/", field.IsoHarvestView.as_view(), name="iso-harvest"),
+    path("iso/plots/", field.IsoFieldPlotsView.as_view(), name="iso-plots"),
 
-    # plants
-    path("plants/", PlantListView.as_view(), name="plants"),
+    # добыча
+    path("extraction/start/", production.ExtractionStartView.as_view(), name="extraction-start"),
+    path("extraction/status/", production.ExtractionStatusView.as_view(), name="extraction-status"),
+    path("extraction/collect/", production.ExtractionCollectView.as_view(), name="extraction-collect"),
+    path("extraction/stop/", production.ExtractionStopView.as_view(), name="extraction-stop"),
 
-    # inventory
-    path("inventory/", InventoryView.as_view(), name="inventory"),
-
-    # shop (важно: точные маршруты перед параметрическими)
-    path("shop/items/", ShopItemListView.as_view(), name="shop-items"),
-    path("shop/seeds/", ShopSeedsListView.as_view(), name="shop-seeds"),
-    path("shop/harvest/", ShopHarvestListView.as_view(), name="shop-harvest"),
-    path("shop/buy/", buy_item, name="shop-buy"),
-    path("shop/<str:category>/", ShopByCategoryView.as_view(), name="shop-category"),
-
-    # market
-    path("market/inventory/", market_inventory, name="market-inventory"),
-    path("market/sell/", SellItemView.as_view(), name="market-sell"),
-    path("inventory/resources/", resources_inventory, name="resources-inventory"),
-
-    # ISO field (pixi)
-    path("iso/field/", IsoFieldStateView.as_view(), name="iso-field"),
-    path("iso/expand-chunk/", IsoExpandChunkView.as_view(), name="iso-expand-chunk"),
-    path("iso/available-chunks/", IsoAvailableChunksView.as_view(), name="iso-available-chunks"),
-    path("iso/place-building/", IsoPlaceBuildingView.as_view(), name="iso-place-building"),
-    path("iso/remove-building/", IsoRemoveBuildingView.as_view(), name="iso-remove-building"),
-    path("iso/move-building/", IsoMoveBuildingView.as_view(), name="iso-move-building"),
-    path("iso/move-buildings/", IsoMoveBuildingsBatchView.as_view(), name="iso-move-buildings"),
-    path("iso/plant-seed/", IsoPlantSeedView.as_view(), name="iso-plant-seed"),
-    path("iso/harvest/", IsoHarvestView.as_view(), name="iso-harvest"),
-    path("iso/plots/", IsoFieldPlotsView.as_view(), name="iso-plots"),
-    
-    # extraction (добыча)
-    path("extraction/start/", ExtractionStartView.as_view(), name="extraction-start"),
-    path("extraction/status/", ExtractionStatusView.as_view(), name="extraction-status"),
-    path("extraction/collect/", ExtractionCollectView.as_view(), name="extraction-collect"),
-    path("extraction/stop/", ExtractionStopView.as_view(), name="extraction-stop"),
-    
-    # processing (переработка)
-    path("processing/recipes/", ProcessingRecipesView.as_view(), name="processing-recipes"),
-    path("processing/start/", ProcessingStartView.as_view(), name="processing-start"),
-    path("processing/status/", ProcessingStatusView.as_view(), name="processing-status"),
-    path("processing/collect/", ProcessingCollectView.as_view(), name="processing-collect"),
-    path("processing/stop/", ProcessingStopView.as_view(), name="processing-stop"),
+    # переработка, производство, животноводство
+    path("processing/recipes/", production.ProcessingRecipesView.as_view(), name="processing-recipes"),
+    path("processing/start/", production.ProcessingStartView.as_view(), name="processing-start"),
+    path("processing/status/", production.ProcessingStatusView.as_view(), name="processing-status"),
+    path("processing/collect/", production.ProcessingCollectView.as_view(), name="processing-collect"),
+    path("processing/stop/", production.ProcessingStopView.as_view(), name="processing-stop"),
 ]

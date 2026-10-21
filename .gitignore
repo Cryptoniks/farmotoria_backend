@@ -1,42 +1,34 @@
-# Secrets folder - NEVER commit
-../../.secrets/
+# Окружение и секреты
+.env
+.env.*
+!.env.example
+venv/
+.venv/
 
 # Python
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
 *.egg-info/
-*.egg
-dist/
-build/
 
 # Django
-*.pyc
-*migration/*.py
-*migration/*.pyc
-local_settings.py
 db.sqlite3
 db.sqlite3-journal
+staticfiles/
+media/
+*.log
 
-# Environment variables
-.env
-.env.local
-.env.*.local
-
-# Virtual Environment
-venv/
-.venv/
-
-# IDE
-.vscode/
-.idea/
-
-# Testing
+# Тесты
 .pytest_cache/
 .coverage
+coverage.xml
 htmlcov/
 
-# Logs
-*.log
-logs/
+# IDE / OS
+.vscode/
+.idea/
+.gigacode_vsc/
+.DS_Store
+Thumbs.db
+
+# Папка скрипта очистки
+_to_delete/

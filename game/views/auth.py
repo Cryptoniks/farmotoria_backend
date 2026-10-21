@@ -2,13 +2,19 @@ from django.contrib.auth.models import User
 from rest_framework import generics, permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.permissions import IsAuthenticated
 
-from ..models import PlayerProfile, ensure_user_skills
-from ..serializers import RegisterSerializer, PlayerProfileSerializer
+from ..models import ensure_user_skills
+from ..serializers import MeUpdateSerializer, RegisterSerializer
+from ..services.player import get_profile
+from .base import GameAPIView
 
 
 class FarmotoriaPingView(APIView):
+    """Health check для Render."""
+
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = []
+
     def get(self, request):
         return Response({"project": "Farmotoria", "message": "pong"})
 
@@ -17,15 +23,14 @@ class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = RegisterSerializer
     permission_classes = [permissions.AllowAny]
+    authentication_classes = []
 
 
-class MeView(APIView):
-    permission_classes = [IsAuthenticated]
-
+class MeView(GameAPIView):
     def get(self, request):
-        profile, _ = PlayerProfile.objects.get_or_create(user=request.user)
+        profile = get_profile(request.user)
         user_skills = ensure_user_skills(request.user)
-
+        exp_to_next = profile.exp_to_next
         return Response({
             "id": request.user.id,
             "username": request.user.username,
@@ -33,8 +38,8 @@ class MeView(APIView):
             "coins_balance": profile.coins_balance,
             "level": profile.level,
             "exp": profile.exp,
-            "exp_to_next": profile.exp_to_next,
-            "exp_progress": min(int((profile.exp / profile.exp_to_next) * 100), 100) if profile.exp_to_next > 0 else 100,
+            "exp_to_next": exp_to_next,
+            "exp_progress": min(int(profile.exp / exp_to_next * 100), 100) if exp_to_next > 0 else 100,
             "skills": [
                 {
                     "id": us.id,
@@ -49,3 +54,12 @@ class MeView(APIView):
                 for us in user_skills
             ],
         })
+
+    def put(self, request):
+        """Смена имени и e-mail (используется на странице профиля)."""
+        serializer = MeUpdateSerializer(request.user, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return self.get(request)
+
+    patch = put
