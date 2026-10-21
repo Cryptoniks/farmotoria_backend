@@ -176,7 +176,8 @@ def status_payload(profile: PlayerProfile) -> list[dict]:
 def _get_running(profile, process_id) -> RecipeProcess:
     try:
         return (
-            RecipeProcess.objects.select_for_update()
+            # of=("self",): recipe.skill nullable, PostgreSQL не блокирует строки LEFT JOIN
+            RecipeProcess.objects.select_for_update(of=("self",))
             .select_related("recipe__output_item", "recipe__skill")
             .get(id=process_id, profile=profile, status="running")
         )

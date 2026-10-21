@@ -225,7 +225,8 @@ def plant_seed(profile: PlayerProfile, user, building_id: int, cell_row: int, ce
 
 def harvest(profile: PlayerProfile, user, plot_id: int) -> dict:
     try:
-        plot = FarmPlot.objects.select_related("seed__harvest_item").select_for_update().get(
+        # of=("self",): PostgreSQL не умеет FOR UPDATE по nullable-связи (seed.harvest_item) в LEFT JOIN
+        plot = FarmPlot.objects.select_related("seed__harvest_item").select_for_update(of=("self",)).get(
             id=plot_id, profile=profile
         )
     except FarmPlot.DoesNotExist:
