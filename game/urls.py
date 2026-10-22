@@ -32,6 +32,7 @@ urlpatterns = [
     path("iso/remove-building/", field.IsoRemoveBuildingView.as_view(), name="iso-remove-building"),
     path("iso/move-building/", field.IsoMoveBuildingView.as_view(), name="iso-move-building"),
     path("iso/upgrade-building/", field.IsoUpgradeBuildingView.as_view(), name="iso-upgrade-building"),
+    path("iso/building-appearance/", field.IsoBuildingAppearanceView.as_view(), name="iso-building-appearance"),
     path("iso/move-buildings/", field.IsoMoveBuildingsBatchView.as_view(), name="iso-move-buildings"),
     path("iso/plant-seed/", field.IsoPlantSeedView.as_view(), name="iso-plant-seed"),
     path("iso/harvest/", field.IsoHarvestView.as_view(), name="iso-harvest"),

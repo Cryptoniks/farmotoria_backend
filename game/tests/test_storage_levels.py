@@ -193,3 +193,55 @@ class TestLevels:
         FarmPlot.objects.filter(id=plot.id).update(ready_at=timezone.now(), status="ready")
         r = client.post("/api/iso/harvest/", {"plot_id": plot.id}, format="json")
         assert r.status_code == 200 and r.data["harvest"]["quantity"] == 3  # 2 × 1.5
+
+
+@pytest.mark.django_db
+class TestAppearance:
+    LOOK = {"c": 11, "r": 22, "d": 33}
+
+    def post(self, client, slug, appearance):
+        return client.post("/api/iso/building-appearance/", {"slug": slug, "appearance": appearance}, format="json")
+
+    def test_change_costs_500_and_applies_to_type(self, new_player):
+        player, client = new_player
+        rich(player)
+        before = player.profile.coins_balance
+        r = self.post(client, "barn", self.LOOK)
+        assert r.status_code == 200 and r.data["paid"] == 500 and r.data["coins_balance"] == before - 500
+        state = client.get("/api/iso/field/").data
+        assert state["appearances"] == {"barn": self.LOOK} and state["appearance_price"] == 500
+
+        r = self.post(client, "barn", {"c": 1, "r": 2, "d": 3})  # новая смена — снова 500
+        assert r.status_code == 200 and r.data["coins_balance"] == before - 1000
+        assert self.post(client, "barn", {"c": 1, "r": 2, "d": 3}).status_code == 400  # тот же вид
+
+    def test_service_buildings_can_change_too(self, new_player):
+        player, client = new_player
+        assert self.post(client, "shop", self.LOOK).status_code == 200
+
+    def test_not_enough_coins(self, new_player):
+        player, client = new_player
+        player.profile.coins_balance = 499
+        player.profile.save()
+        assert self.post(client, "barn", self.LOOK).status_code == 400
+        assert client.get("/api/iso/field/").data["appearances"] == {}
+
+    def test_reset_is_free(self, new_player):
+        player, client = new_player
+        self.post(client, "barn", self.LOOK)
+        player.profile.refresh_from_db()
+        balance = player.profile.coins_balance
+        r = self.post(client, "barn", None)
+        assert r.status_code == 200 and r.data["paid"] == 0 and r.data["coins_balance"] == balance
+        assert client.get("/api/iso/field/").data["appearances"] == {}
+
+    @pytest.mark.parametrize("bad", [{"c": 1}, {"c": 1, "r": 2, "d": -1}, {"c": "1", "r": 2, "d": 3},
+                                     {"c": True, "r": 2, "d": 3}, [1, 2, 3], {"c": 1, "r": 2, "d": 3, "x": 4},
+                                     {"c": 0, "r": 0, "d": 0}])
+    def test_validation(self, new_player, bad):
+        _, client = new_player
+        assert self.post(client, "barn", bad).status_code == 400
+
+    def test_unknown_building(self, new_player):
+        _, client = new_player
+        assert self.post(client, "castle", self.LOOK).status_code == 404

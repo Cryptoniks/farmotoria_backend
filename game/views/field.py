@@ -3,8 +3,16 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework.response import Response
 
-from ..models import CHUNK_SIZE, MAX_FIELD_SIZE, START_UNLOCKED_SIZE, BuildingPlacement, BuildingType, FarmPlot
-from ..services import GameError, field
+from ..models import (
+    APPEARANCE_CHANGE_PRICE,
+    CHUNK_SIZE,
+    MAX_FIELD_SIZE,
+    START_UNLOCKED_SIZE,
+    BuildingPlacement,
+    BuildingType,
+    FarmPlot,
+)
+from ..services import GameError, appearance, field
 from ..services.player import get_profile, lock_profile
 from .base import GameAPIView, int_param
 
@@ -28,6 +36,9 @@ class IsoFieldStateView(GameAPIView):
             },
             "chunks": list(profile.field_chunks.values("chunk_row", "chunk_col", "price_paid")),
             "buildings": [field.building_to_dict(p) for p in placements],
+            # Внешний вид, выбранный игроком: slug типа здания → параметры генератора
+            "appearances": appearance.appearances_map(profile),
+            "appearance_price": APPEARANCE_CHANGE_PRICE,
             # Магазин и Рынок даются на старте и в меню постройки не попадают
             "available_buildings": list(
                 BuildingType.objects.exclude(building_type__in=BuildingType.SERVICE_TYPES)
@@ -105,6 +116,29 @@ class IsoUpgradeBuildingView(GameAPIView):
             "coins_balance": profile.coins_balance,
             "paid": paid,
             "building": field.building_to_dict(placement),
+        })
+
+
+class IsoBuildingAppearanceView(GameAPIView):
+    """{"slug": ..., "appearance": {"c", "r", "d"}} — сменить вид за монеты; appearance=null — вернуть стандартный."""
+
+    def post(self, request):
+        slug = request.data.get("slug")
+        value = request.data.get("appearance")
+        with transaction.atomic():
+            profile = lock_profile(request.user)
+            if value is None:
+                appearance.reset(profile, slug)
+                paid, saved = 0, None
+            else:
+                obj, paid = appearance.change(profile, slug, value)
+                saved = obj.appearance
+        return Response({
+            "success": True,
+            "coins_balance": profile.coins_balance,
+            "paid": paid,
+            "slug": slug,
+            "appearance": saved,
         })
 
 

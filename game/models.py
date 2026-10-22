@@ -10,6 +10,7 @@ CHUNK_SIZE = 10           # Размер чанка для покупки (10x10
 START_UNLOCKED_SIZE = 50  # Стартовое поле 50x50 клеток
 MAX_FIELD_SIZE = 250      # Максимальное поле 250x250 клеток
 STARTING_COINS = 500      # Стартовый баланс для нового игрока
+APPEARANCE_CHANGE_PRICE = 500  # Смена внешнего вида типа здания (одинаково для всех зданий)
 
 # Опыт за сбор урожая
 PLAYER_EXP_PER_HARVEST = 10   # Опыт профилю за сбор
@@ -415,6 +416,26 @@ class BuildingPlacement(models.Model):
 
     def __str__(self):
         return f"Placement({self.profile_id}:{self.building_type.slug}@{self.row},{self.col})"
+
+
+class PlayerBuildingAppearance(models.Model):
+    """
+    Внешний вид типа здания, выбранный игроком. Действует на все его здания этого типа,
+    включая будущие. Нет записи — стандартный вид. Картинку по параметрам рисует фронтенд
+    (src/features/farm/buildingArt): {"c": цвета, "r": крыша, "d": детали} — зёрна генератора.
+    """
+    profile = models.ForeignKey(PlayerProfile, on_delete=models.CASCADE, related_name="building_appearances")
+    building_type = models.ForeignKey(BuildingType, on_delete=models.CASCADE, related_name="appearances")
+    appearance = models.JSONField()
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Внешний вид здания игрока"
+        verbose_name_plural = "Внешний вид зданий игроков"
+        unique_together = ("profile", "building_type")
+
+    def __str__(self):
+        return f"Appearance({self.profile_id}:{self.building_type.slug})"
 
 
 class FarmPlot(models.Model):

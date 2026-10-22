@@ -9,6 +9,7 @@ from .models import (
     FieldChunk,
     InventoryItem,
     ItemCategory,
+    PlayerBuildingAppearance,
     PlayerProfile,
     Recipe,
     RecipeIngredient,
@@ -144,3 +145,10 @@ class ExtractionProcessAdmin(admin.ModelAdmin):
     list_display = ("profile", "building", "resource", "status", "next_harvest_at")
     list_filter = ("status",)
     list_select_related = ("profile__user", "resource", "building__building_type")
+
+
+@admin.register(PlayerBuildingAppearance)
+class PlayerBuildingAppearanceAdmin(admin.ModelAdmin):
+    list_display = ("profile", "building_type", "appearance", "updated_at")
+    list_filter = ("building_type",)
+    list_select_related = ("profile__user", "building_type")
