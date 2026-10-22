@@ -45,6 +45,12 @@ class Command(BaseCommand):
                 problems.append(f"здание добычи {bt.slug} без ресурса")
         if not BuildingType.objects.filter(slug="farming-field").exists():
             problems.append("нет здания farming-field — посадка невозможна")
+        for kind in BuildingType.SERVICE_TYPES:
+            if not BuildingType.objects.filter(building_type=kind).exists():
+                problems.append(f"нет здания типа {kind} — игроку негде покупать/продавать")
+        for kind, _ in ShopItem.STORAGE_CHOICES:
+            if not BuildingType.objects.filter(building_type=BuildingType.TYPE_STORAGE, storage=kind, capacity__gt=0).exists():
+                problems.append(f"нет хранилища для товаров «{kind}» с вместимостью > 0")
 
         if problems:
             out.write(self.style.WARNING("\nПроблемы:"))

@@ -4,7 +4,7 @@ from django.db.models import F
 
 from game.models import InventoryItem, PlayerProfile, ShopItem
 
-from . import GameError
+from . import GameError, storage
 from .player import add_coins, lock_profile, spend_coins
 
 
@@ -59,6 +59,7 @@ def buy_item(user, item_id, quantity) -> tuple[PlayerProfile, ShopItem, int, int
         profile = lock_profile(user)
         if profile.coins_balance < total:
             raise GameError(f"Недостаточно монет! Нужно: {total}, есть: {profile.coins_balance}")
+        storage.ensure_space(profile, item, quantity)
         spend_coins(profile, total)
         add_item(profile, item, quantity)
     return profile, item, quantity, total

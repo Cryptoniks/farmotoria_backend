@@ -3,7 +3,7 @@ from rest_framework.response import Response
 
 from ..models import InventoryItem, ShopItem
 from ..serializers import InventoryItemSerializer, ShopItemSerializer
-from ..services import inventory
+from ..services import inventory, storage
 from ..services.extraction import accrue
 from ..services.player import get_profile
 from .base import GameAPIView
@@ -78,6 +78,7 @@ class MarketInventoryView(GameAPIView):
                 "quantity": stock.get(item.id, 0),
                 "item_type": "harvest" if item.is_harvest else ("resource" if item.is_resource else "product"),
                 "category_name": item.category.name if item.category_id else "Без категории",
+                "storage": item.storage,
             }
             for item in items
         ])
@@ -94,3 +95,12 @@ class SellItemView(GameAPIView):
             "total_earned": total,
             "message": f"Продано {qty}×{item.name} за {total} монет",
         })
+
+
+class StorageView(GameAPIView):
+    """Сарай и Склад: вместимость, заполненность и товары в каждом."""
+
+    def get(self, request):
+        profile = get_profile(request.user)
+        accrue(profile)
+        return Response(storage.summary(profile))

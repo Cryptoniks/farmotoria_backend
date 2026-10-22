@@ -17,7 +17,7 @@ from game.models import (
     ShopItem,
 )
 
-from . import GameError
+from . import GameError, storage
 from .inventory import add_item
 from .player import add_coins, spend_coins
 from .skills import add_skill_exp, farming_duration, skill_level
@@ -116,6 +116,8 @@ def place_building(profile: PlayerProfile, building_type_id: int, row: int, col:
         bt = BuildingType.objects.get(id=building_type_id)
     except BuildingType.DoesNotExist:
         raise GameError("Тип здания не найден", status=404)
+    if bt.is_service:
+        raise GameError(f"«{bt.name}» нельзя построить: оно одно и даётся на старте")
 
     validate_area(profile, row, col, bt.width, bt.height)
     spend_coins(profile, bt.price)
@@ -138,6 +140,9 @@ def get_placement(profile, placement_id, lock=False) -> BuildingPlacement:
 def remove_building(profile: PlayerProfile, placement_id: int) -> int:
     """Продаёт здание, возвращает потраченные монеты. Нельзя продать здание с активным процессом."""
     placement = get_placement(profile, placement_id, lock=True)
+    if placement.building_type.is_service:
+        raise GameError(f"«{placement.building_type.name}» нельзя продать")
+    storage.ensure_can_remove(profile, placement)
 
     active_plots = FarmPlot.objects.filter(building=placement, status__in=ACTIVE_PLOT_STATUSES).count()
     if active_plots:
@@ -149,7 +154,8 @@ def remove_building(profile: PlayerProfile, placement_id: int) -> int:
     if RecipeProcess.objects.filter(building=placement, status="running").exists():
         raise GameError("Нельзя продать: в здании идёт производство. Сначала остановите или заберите его")
 
-    refund = placement.price_paid or placement.building_type.price
+    # Стартовые здания бесплатные (price_paid=0) — за них ничего не возвращается
+    refund = placement.price_paid
     placement.delete()
     add_coins(profile, refund)
     return refund
@@ -169,6 +175,7 @@ def move_building(profile, placement_id, new_row, new_col, owned=None, placement
 
 def building_to_dict(p: BuildingPlacement) -> dict:
     bt = p.building_type
+    can_upgrade = not bt.is_service and p.level < bt.max_level and not p.upgrade_finishes_at
     return {
         "id": p.id,
         "building_id": bt.id,
@@ -180,7 +187,51 @@ def building_to_dict(p: BuildingPlacement) -> dict:
         "w": p.width,
         "h": p.height,
         "price_paid": p.price_paid,
+        "level": p.level,
+        "max_level": bt.max_level,
+        "upgrade_price": bt.upgrade_price(p.level) if can_upgrade else None,
+        "upgrade_seconds": bt.upgrade_seconds,
+        "upgrade_finishes_at": p.upgrade_finishes_at.isoformat() if p.upgrade_finishes_at else None,
+        "storage": bt.storage or None,
+        "capacity": bt.capacity_at(p.level) if bt.storage else None,
+        "next_capacity": bt.capacity_at(p.level + 1) if bt.storage and can_upgrade else None,
+        "yield_bonus": round(bt.yield_factor(p.level) - 1, 4),
+        "speed_bonus": round(bt.speed_reduction(p.level), 4),
+        "next_yield_bonus": round(bt.yield_factor(p.level + 1) - 1, 4) if can_upgrade else None,
+        "next_speed_bonus": round(bt.speed_reduction(p.level + 1), 4) if can_upgrade else None,
     }
+
+
+# ------------------------------------------------------------- уровни ----
+def finish_upgrades(profile: PlayerProfile) -> None:
+    """Завершает улучшения по времени, срок которых прошёл (пока upgrade_seconds=0 — не используется)."""
+    for p in BuildingPlacement.objects.filter(
+        profile=profile, upgrade_finishes_at__isnull=False, upgrade_finishes_at__lte=timezone.now()
+    ):
+        p.level += 1
+        p.upgrade_finishes_at = None
+        p.save(update_fields=["level", "upgrade_finishes_at"])
+
+
+def upgrade_building(profile: PlayerProfile, placement_id: int) -> tuple[BuildingPlacement, int]:
+    """Профиль должен быть заблокирован. Возвращает здание и заплаченную цену."""
+    placement = get_placement(profile, placement_id, lock=True)
+    bt = placement.building_type
+    if bt.is_service:
+        raise GameError(f"«{bt.name}» не улучшается")
+    if placement.upgrade_finishes_at:
+        raise GameError("Здание уже улучшается")
+    if placement.level >= bt.max_level:
+        raise GameError(f"Достигнут максимальный уровень ({bt.max_level})")
+
+    price = bt.upgrade_price(placement.level)
+    spend_coins(profile, price)
+    if bt.upgrade_seconds:
+        placement.upgrade_finishes_at = timezone.now() + timezone.timedelta(seconds=bt.upgrade_seconds)
+    else:
+        placement.level += 1
+    placement.save(update_fields=["level", "upgrade_finishes_at"])
+    return placement, price
 
 
 # --------------------------------------------------------------- грядки ----
@@ -210,7 +261,8 @@ def plant_seed(profile: PlayerProfile, user, building_id: int, cell_row: int, ce
     spend_coins(profile, seed.price_coins)
 
     base_seconds = (seed.grow_time_minutes or DEFAULT_GROW_MINUTES) * 60
-    seconds = farming_duration(base_seconds, skill_level(user, SKILL_FARMING))
+    bt = building.building_type
+    seconds = farming_duration(base_seconds, skill_level(user, SKILL_FARMING), bt.speed_reduction(building.level))
     now = timezone.now()
 
     # Старая собранная запись на той же клетке мешает unique_together
@@ -226,7 +278,9 @@ def plant_seed(profile: PlayerProfile, user, building_id: int, cell_row: int, ce
 def harvest(profile: PlayerProfile, user, plot_id: int) -> dict:
     try:
         # of=("self",): PostgreSQL не умеет FOR UPDATE по nullable-связи (seed.harvest_item) в LEFT JOIN
-        plot = FarmPlot.objects.select_related("seed__harvest_item").select_for_update(of=("self",)).get(
+        plot = FarmPlot.objects.select_related(
+            "seed__harvest_item", "building__building_type"
+        ).select_for_update(of=("self",)).get(
             id=plot_id, profile=profile
         )
     except FarmPlot.DoesNotExist:
@@ -239,7 +293,9 @@ def harvest(profile: PlayerProfile, user, plot_id: int) -> dict:
     if not harvest_item:
         raise GameError("У данного семени нет связанного урожая")
 
-    quantity = plot.seed.harvest_yield or 2
+    field = plot.building
+    quantity = round((plot.seed.harvest_yield or 2) * field.building_type.yield_factor(field.level))
+    storage.ensure_space(profile, harvest_item, quantity)
     add_item(profile, harvest_item, quantity)
     plot.delete()
 

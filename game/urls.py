@@ -20,6 +20,7 @@ urlpatterns = [
     path("shop/buy/", shop.BuyItemView.as_view(), name="shop-buy"),
     path("inventory/", shop.InventoryView.as_view(), name="inventory"),
     path("inventory/resources/", shop.ResourcesInventoryView.as_view(), name="resources-inventory"),
+    path("storage/", shop.StorageView.as_view(), name="storage"),
     path("market/inventory/", shop.MarketInventoryView.as_view(), name="market-inventory"),
     path("market/sell/", shop.SellItemView.as_view(), name="market-sell"),
 
@@ -30,6 +31,7 @@ urlpatterns = [
     path("iso/place-building/", field.IsoPlaceBuildingView.as_view(), name="iso-place-building"),
     path("iso/remove-building/", field.IsoRemoveBuildingView.as_view(), name="iso-remove-building"),
     path("iso/move-building/", field.IsoMoveBuildingView.as_view(), name="iso-move-building"),
+    path("iso/upgrade-building/", field.IsoUpgradeBuildingView.as_view(), name="iso-upgrade-building"),
     path("iso/move-buildings/", field.IsoMoveBuildingsBatchView.as_view(), name="iso-move-buildings"),
     path("iso/plant-seed/", field.IsoPlantSeedView.as_view(), name="iso-plant-seed"),
     path("iso/harvest/", field.IsoHarvestView.as_view(), name="iso-harvest"),

@@ -17,7 +17,7 @@ class ShopItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = ShopItem
         fields = (
-            "id", "name", "description", "slug", "price_coins", "buy_price", "category",
+            "id", "name", "description", "slug", "price_coins", "buy_price", "category", "storage",
             "is_seed", "is_harvest", "is_resource", "grow_time_minutes", "harvest_yield",
             "harvest_item", "harvest_name", "harvest_slug"
         )

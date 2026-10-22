@@ -9,7 +9,7 @@ farmotoria_backend/
 ├── farmotoria_backend/settings/   # base · dev · prod · test
 ├── game/
 │   ├── models.py
-│   ├── services/                  # вся игровая логика: player, skills, inventory, field, extraction, processing
+│   ├── services/                  # вся игровая логика: player, skills, inventory, storage, field, extraction, processing
 │   ├── views/                     # auth · shop · field · production (приём запроса → сервис → ответ)
 │   ├── serializers/
 │   ├── management/commands/       # seed_game_data, game_report
@@ -60,3 +60,12 @@ python manage.py runserver
 - `python manage.py seed_game_data` — добавить недостающее (правки из админки не перезаписываются);
 - `python manage.py seed_game_data --update` — перезаписать значениями из файла;
 - `python manage.py game_report` — сводка и проверка целостности.
+
+## Хранилища и уровни зданий
+
+Подробности и решения — в [docs/PLAN_buildings.md](docs/PLAN_buildings.md).
+
+- Новый игрок бесплатно получает Магазин, Рынок, Склад, Сарай и Фермерское поле в верхнем углу карты (`STARTING_BUILDINGS` в `game/services/player.py`). Магазин и Рынок не строятся, не продаются и не улучшаются.
+- Товар лежит в Сарае или на Складе (`ShopItem.storage`). Вместимость — сумма всех Сараев (Складов) с учётом уровня. Когда места нет, покупка, сбор урожая и продукции отклоняются, добыча встаёт на паузу.
+- Уровень здания (`BuildingPlacement.level`) даёт бонусы по настройкам типа здания (`BuildingType`: `max_level`, цена и время улучшения, вместимость, бонусы выхода и скорости — правятся в админке). Бонус скорости складывается с навыком, итог не быстрее 20% от базового времени.
+- API: `GET /api/storage/`, `POST /api/iso/upgrade-building/` (`placement_id`).

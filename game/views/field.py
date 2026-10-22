@@ -12,6 +12,7 @@ from .base import GameAPIView, int_param
 class IsoFieldStateView(GameAPIView):
     def get(self, request):
         profile = get_profile(request.user)
+        field.finish_upgrades(profile)
         placements = (
             BuildingPlacement.objects.filter(profile=profile)
             .select_related("building_type")
@@ -27,9 +28,12 @@ class IsoFieldStateView(GameAPIView):
             },
             "chunks": list(profile.field_chunks.values("chunk_row", "chunk_col", "price_paid")),
             "buildings": [field.building_to_dict(p) for p in placements],
-            "available_buildings": list(BuildingType.objects.order_by("id").values(
-                "id", "name", "slug", "building_type", "width", "height", "price"
-            )),
+            # Магазин и Рынок даются на старте и в меню постройки не попадают
+            "available_buildings": list(
+                BuildingType.objects.exclude(building_type__in=BuildingType.SERVICE_TYPES)
+                .order_by("id")
+                .values("id", "name", "slug", "building_type", "width", "height", "price")
+            ),
         })
 
 
@@ -87,6 +91,20 @@ class IsoRemoveBuildingView(GameAPIView):
             "coins_balance": profile.coins_balance,
             "refunded": refund,
             "removed_id": placement_id,
+        })
+
+
+class IsoUpgradeBuildingView(GameAPIView):
+    def post(self, request):
+        placement_id = int_param(request.data, "placement_id")
+        with transaction.atomic():
+            profile = lock_profile(request.user)
+            placement, paid = field.upgrade_building(profile, placement_id)
+        return Response({
+            "success": True,
+            "coins_balance": profile.coins_balance,
+            "paid": paid,
+            "building": field.building_to_dict(placement),
         })
 
 

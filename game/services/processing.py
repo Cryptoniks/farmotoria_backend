@@ -19,7 +19,7 @@ from game.models import (
     RecipeProcess,
 )
 
-from . import GameError
+from . import GameError, storage
 from .field import get_placement
 from .inventory import add_item, available_quantities, parse_quantity, remove_item
 from .skills import add_skill_exp, skill_level, work_duration
@@ -120,7 +120,10 @@ def start(profile: PlayerProfile, building_id, recipe_id, quantity) -> tuple[Rec
             f"Недостаточно ресурсов. Максимально можно запустить: {possible}", max_possible=possible
         )
 
-    per_one = work_duration(recipe.duration_seconds, skill_level(profile.user, group))
+    bt = building.building_type
+    per_one = work_duration(
+        recipe.duration_seconds, skill_level(profile.user, group), bt.speed_reduction(building.level)
+    )
     with transaction.atomic():
         for ing in ingredients:
             remove_item(profile, ing.item, ing.quantity * quantity)
@@ -178,7 +181,7 @@ def _get_running(profile, process_id) -> RecipeProcess:
         return (
             # of=("self",): recipe.skill nullable, PostgreSQL не блокирует строки LEFT JOIN
             RecipeProcess.objects.select_for_update(of=("self",))
-            .select_related("recipe__output_item", "recipe__skill")
+            .select_related("recipe__output_item", "recipe__skill", "building__building_type")
             .get(id=process_id, profile=profile, status="running")
         )
     except RecipeProcess.DoesNotExist:
@@ -189,7 +192,10 @@ def _reward(profile: PlayerProfile, process: RecipeProcess, cycles: int) -> int:
     if cycles <= 0:
         return 0
     recipe = process.recipe
-    total = recipe.output_quantity * cycles
+    building = process.building
+    # Уровень здания увеличивает выход (у животных; у переработки бонус выхода 0)
+    total = round(recipe.output_quantity * cycles * building.building_type.yield_factor(building.level))
+    storage.ensure_space(profile, recipe.output_item, total)
     add_item(profile, recipe.output_item, total)
     profile.add_exp(cycles)
     if recipe.skill_id and recipe.skill_exp:

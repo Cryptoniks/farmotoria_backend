@@ -54,9 +54,11 @@ CROPS = [
 # название, slug, тип, ширина, высота, цена (список из SpriteInfo.txt)
 BUILDINGS = [
     ("Фермерское поле", "farming-field", "field", 2, 2, 100),
+    ("Магазин", "shop", "shop", 3, 3, 0),
+    ("Рынок", "market", "market", 4, 3, 0),
     ("Дом", "house", "agroproduction", 2, 3, 50),
-    ("Склад", "warehouse", "agroproduction", 5, 5, 100),
-    ("Сарай", "barn", "agroproduction", 2, 2, 100),
+    ("Склад", "warehouse", "storage", 5, 5, 100),
+    ("Сарай", "barn", "storage", 2, 2, 100),
     ("Лесорубка", "lumberjack_hut", "extraction", 2, 2, 100),
     ("Каменоломня", "quarry", "extraction", 3, 3, 100),
     ("Рудник", "mine", "extraction", 3, 3, 100),
@@ -73,6 +75,22 @@ BUILDINGS = [
     ("Коровник", "cowshed", "agroproduction", 4, 4, 5000),
     ("Овчарня", "sheepfold", "agroproduction", 3, 3, 2500),
 ]
+
+# Бонусы уровня по типу здания: (выход продукции за уровень, сокращение времени за уровень)
+LEVEL_BONUSES = {
+    "field": (0.10, 0.03),
+    "agroproduction": (0.10, 0.03),
+    "extraction": (0.10, 0.03),
+    "processing": (0.0, 0.05),
+    "production": (0.0, 0.05),
+}
+NO_BONUS_BUILDINGS = {"house"}  # здания без функции: уровень есть, бонусов нет
+
+# Хранилища: slug → (что хранит, вместимость на 1 уровне)
+STORAGES = {"barn": ("barn", 250), "warehouse": ("warehouse", 500)}
+
+# Товары этих категорий лежат в Сарае, остальные — на Складе
+BARN_CATEGORIES = {CAT_SEEDS, CAT_HARVEST, CAT_FEED, CAT_ANIMAL}
 
 # slug, название, категория, цена продажи, это ресурс добычи
 ITEMS = [
@@ -162,25 +180,31 @@ class Command(BaseCommand):
         for slug, name, seed_price, minutes, harvest_price, harvest_yield in CROPS:
             harvest = self.upsert(ShopItem, {"slug": f"{slug}_harvest"}, {
                 "name": name, "category": categories[CAT_HARVEST], "price_coins": harvest_price,
-                "is_harvest": True, "harvest_yield": harvest_yield,
+                "is_harvest": True, "harvest_yield": harvest_yield, "storage": ShopItem.STORAGE_BARN,
             })
             items[harvest.slug] = harvest
             items[slug] = self.upsert(ShopItem, {"slug": slug}, {
                 "name": f"{name} (семена)", "category": categories[CAT_SEEDS], "price_coins": seed_price,
                 "is_seed": True, "grow_time_minutes": minutes, "harvest_yield": harvest_yield,
-                "harvest_item": harvest,
+                "harvest_item": harvest, "storage": ShopItem.STORAGE_BARN,
             })
 
         for slug, name, category, price, is_resource in ITEMS:
             items[slug] = self.upsert(ShopItem, {"slug": slug}, {
                 "name": name, "category": categories[category], "price_coins": price,
                 "is_resource": is_resource,
+                "storage": ShopItem.STORAGE_BARN if category in BARN_CATEGORIES else ShopItem.STORAGE_WAREHOUSE,
             })
 
         buildings = {}
         for name, slug, kind, width, height, price in BUILDINGS:
+            yield_bonus, speed_bonus = (0.0, 0.0) if slug in NO_BONUS_BUILDINGS else LEVEL_BONUSES.get(kind, (0.0, 0.0))
+            storage, capacity = STORAGES.get(slug, ("", 0))
             buildings[slug] = self.upsert(BuildingType, {"slug": slug}, {
                 "name": name, "building_type": kind, "width": width, "height": height, "price": price,
+                "max_level": 1 if kind in BuildingType.SERVICE_TYPES else 10,
+                "yield_bonus_per_level": yield_bonus, "speed_bonus_per_level": speed_bonus,
+                "storage": storage, "capacity": capacity,
             })
 
         for building, name, item, qty, seconds in EXTRACTION:

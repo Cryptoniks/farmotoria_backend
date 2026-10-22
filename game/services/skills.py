@@ -35,14 +35,20 @@ def add_skill_exp(user, code: str, amount: int) -> int:
     return user_skill.level
 
 
-def reduced_duration(base_seconds: int, level: int, per_level: float, min_factor: float) -> int:
-    factor = max(min_factor, 1.0 - level * per_level)
+TOTAL_MIN_FACTOR = 0.2               # навык + уровень здания вместе: не быстрее 20% от базового
+
+
+def reduced_duration(base_seconds: int, level: int, per_level: float, min_factor: float,
+                     building_reduction: float = 0.0) -> int:
+    """Сокращение от навыка (со своим потолком) складывается с сокращением от уровня здания."""
+    skill_cut = min(level * per_level, 1.0 - min_factor)
+    factor = max(TOTAL_MIN_FACTOR, 1.0 - skill_cut - building_reduction)
     return max(1, int(base_seconds * factor))
 
 
-def work_duration(base_seconds: int, level: int) -> int:
-    return reduced_duration(base_seconds, level, WORK_REDUCTION_PER_LEVEL, WORK_MIN_FACTOR)
+def work_duration(base_seconds: int, level: int, building_reduction: float = 0.0) -> int:
+    return reduced_duration(base_seconds, level, WORK_REDUCTION_PER_LEVEL, WORK_MIN_FACTOR, building_reduction)
 
 
-def farming_duration(base_seconds: int, level: int) -> int:
-    return reduced_duration(base_seconds, level, FARMING_REDUCTION_PER_LEVEL, FARMING_MIN_FACTOR)
+def farming_duration(base_seconds: int, level: int, building_reduction: float = 0.0) -> int:
+    return reduced_duration(base_seconds, level, FARMING_REDUCTION_PER_LEVEL, FARMING_MIN_FACTOR, building_reduction)

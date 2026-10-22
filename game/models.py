@@ -125,6 +125,12 @@ class ShopItem(models.Model):
     is_harvest = models.BooleanField(default=False)  # Урожай с полей
     is_resource = models.BooleanField(default=False)  # Ресурсы добычи
 
+    # Где хранится у игрока: Сарай (сельхоз) или Склад (всё остальное)
+    STORAGE_BARN = "barn"
+    STORAGE_WAREHOUSE = "warehouse"
+    STORAGE_CHOICES = [(STORAGE_BARN, "Сарай"), (STORAGE_WAREHOUSE, "Склад")]
+    storage = models.CharField(max_length=20, choices=STORAGE_CHOICES, default=STORAGE_WAREHOUSE)
+
     # Только для семян
     grow_time_minutes = models.PositiveIntegerField(null=True, blank=True)
     # Только для урожая
@@ -279,6 +285,9 @@ class BuildingType(models.Model):
     TYPE_EXTRACTION = "extraction"  # Добыча ресурсов
     TYPE_PROCESSING = "processing"  # Переработка
     TYPE_PRODUCTION = "production"  # Производство
+    TYPE_STORAGE = "storage"  # Хранилище (Склад, Сарай)
+    TYPE_SHOP = "shop"  # Магазин — покупка товаров
+    TYPE_MARKET = "market"  # Рынок — продажа товаров
 
     TYPE_CHOICES = [
         (TYPE_FIELD, "Поле"),
@@ -286,7 +295,12 @@ class BuildingType(models.Model):
         (TYPE_EXTRACTION, "Добыча ресурсов"),
         (TYPE_PROCESSING, "Переработка"),
         (TYPE_PRODUCTION, "Производство"),
+        (TYPE_STORAGE, "Хранилище"),
+        (TYPE_SHOP, "Магазин"),
+        (TYPE_MARKET, "Рынок"),
     ]
+    # Служебные здания: даются на старте, одно на игрока, не строятся, не продаются, без уровней
+    SERVICE_TYPES = (TYPE_SHOP, TYPE_MARKET)
 
     name = models.CharField(max_length=100)
     slug = models.SlugField(unique=True)
@@ -297,8 +311,26 @@ class BuildingType(models.Model):
 
     price = models.PositiveIntegerField()
 
-    # Картинки лежат на фронте: src/assets/buildings/<slug>.png (или .webp)
-    # поэтому тут ничего не храним.
+    # Уровни. Цена улучшения с уровня L на L+1 = price × upgrade_price_growth^(L-1)
+    max_level = models.PositiveIntegerField(default=10)
+    upgrade_price_growth = models.FloatField(default=1.6)
+    upgrade_seconds = models.PositiveIntegerField(
+        default=0, help_text="Время улучшения на один уровень, сек. 0 — мгновенно"
+    )
+
+    # Хранилища (Склад, Сарай): вместимость = capacity × (1 + capacity_bonus_per_level × (L-1))
+    storage = models.CharField(
+        max_length=20, choices=ShopItem.STORAGE_CHOICES, blank=True,
+        help_text="Для хранилищ: какие товары хранит",
+    )
+    capacity = models.PositiveIntegerField(default=0, help_text="Вместимость на 1 уровне")
+    capacity_bonus_per_level = models.FloatField(default=0.5)
+
+    # Бонусы уровня: выход продукции ×(1 + yield × (L-1)), время −speed × (L-1)
+    yield_bonus_per_level = models.FloatField(default=0.0)
+    speed_bonus_per_level = models.FloatField(default=0.0)
+
+    # Картинки лежат на фронте: src/assets/buildings/<slug>.svg — тут ничего не храним.
 
     class Meta:
         indexes = [
@@ -308,6 +340,24 @@ class BuildingType(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.width}x{self.height})"
+
+    @property
+    def is_service(self) -> bool:
+        return self.building_type in self.SERVICE_TYPES
+
+    def upgrade_price(self, level: int) -> int:
+        """Цена улучшения с уровня level на level+1."""
+        return round(self.price * self.upgrade_price_growth ** (level - 1))
+
+    def capacity_at(self, level: int) -> int:
+        return round(self.capacity * (1 + self.capacity_bonus_per_level * (level - 1)))
+
+    def yield_factor(self, level: int) -> float:
+        return 1 + self.yield_bonus_per_level * (level - 1)
+
+    def speed_reduction(self, level: int) -> float:
+        """Доля сокращения времени от уровня (складывается с бонусом навыка)."""
+        return self.speed_bonus_per_level * (level - 1)
 
 
 class FieldChunk(models.Model):
@@ -350,6 +400,10 @@ class BuildingPlacement(models.Model):
     width = models.PositiveIntegerField()   # snapshot
     height = models.PositiveIntegerField()  # snapshot
     price_paid = models.PositiveIntegerField(default=0)
+
+    level = models.PositiveIntegerField(default=1)
+    # Заготовка под улучшение по времени: пока улучшение мгновенное и поле всегда пустое
+    upgrade_finishes_at = models.DateTimeField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
 

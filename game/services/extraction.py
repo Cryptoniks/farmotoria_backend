@@ -21,7 +21,7 @@ from game.models import (
     PlayerProfile,
 )
 
-from . import GameError
+from . import GameError, storage
 from .field import get_placement
 from .inventory import add_item
 from .skills import add_skill_exp, skill_level, work_duration
@@ -34,7 +34,7 @@ def accrue(profile: PlayerProfile) -> list[dict]:
     with transaction.atomic():
         processes = list(
             ExtractionProcess.objects.select_for_update()
-            .select_related("resource__output_item")
+            .select_related("resource__output_item", "building__building_type")
             .filter(profile=profile, status="running", next_harvest_at__lte=now)
         )
         if not processes:
@@ -45,15 +45,27 @@ def accrue(profile: PlayerProfile) -> list[dict]:
         total_cycles = 0
         for process in processes:
             resource = process.resource
-            duration = work_duration(resource.duration_seconds, level)
+            building = process.building
+            bt = building.building_type
+            duration = work_duration(resource.duration_seconds, level, bt.speed_reduction(building.level))
+            per_cycle = max(1, round(resource.output_quantity * bt.yield_factor(building.level)))
             overdue = (now - process.next_harvest_at).total_seconds()
             cycles = 1 + int(overdue // duration)
-            quantity = cycles * resource.output_quantity
 
-            add_item(profile, resource.output_item, quantity)
-            process.next_harvest_at += timezone.timedelta(seconds=cycles * duration)
+            # Начисляем только то, что помещается в хранилище
+            fit = min(cycles, storage.free_space(profile, resource.output_item.storage) // per_cycle)
+            if fit < cycles:
+                # Хранилище заполнено: добыча на паузе, время простоя не накапливается
+                process.next_harvest_at = now + timezone.timedelta(seconds=duration)
+            else:
+                process.next_harvest_at += timezone.timedelta(seconds=cycles * duration)
             process.save(update_fields=["next_harvest_at"])
+            if fit == 0:
+                continue
 
+            cycles = fit
+            quantity = cycles * per_cycle
+            add_item(profile, resource.output_item, quantity)
             total_cycles += cycles
             collected.append({
                 "process_id": process.id,
@@ -84,7 +96,8 @@ def start(profile: PlayerProfile, building_id: int) -> tuple[ExtractionProcess, 
     ExtractionProcess.objects.filter(building=building).exclude(status="running").delete()
 
     level = skill_level(profile.user, SKILL_EXTRACTION)
-    duration = work_duration(resource.duration_seconds, level)
+    bt = building.building_type
+    duration = work_duration(resource.duration_seconds, level, bt.speed_reduction(building.level))
     process = ExtractionProcess.objects.create(
         profile=profile,
         building=building,
