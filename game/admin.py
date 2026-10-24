@@ -128,7 +128,7 @@ class BuildingPlacementAdmin(admin.ModelAdmin):
 
 @admin.register(FarmPlot)
 class FarmPlotAdmin(admin.ModelAdmin):
-    list_display = ("profile", "building", "cell_row", "cell_col", "seed", "status", "ready_at")
+    list_display = ("profile", "building", "seed", "status", "ready_at")
     list_filter = ("status",)
     list_select_related = ("profile__user", "seed", "building__building_type")
 

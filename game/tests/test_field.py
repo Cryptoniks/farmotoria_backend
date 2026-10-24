@@ -60,10 +60,16 @@ class TestField:
     def test_plant_and_harvest(self, auth_client, user, game_data):
         field_id = place(auth_client, "farming-field", 0, 0).data["building"]["id"]
         seed = ShopItem.objects.get(slug="wheat")
-        payload = {"building_id": field_id, "cell_row": 0, "cell_col": 0, "seed_id": seed.id}
+        payload = {"building_id": field_id, "seed_id": seed.id}
         r = auth_client.post("/api/iso/plant-seed/", payload, format="json")
         assert r.status_code == 200
         assert auth_client.post("/api/iso/plant-seed/", payload, format="json").status_code == 400  # занято
+        # одно поле — одна посадка: другие клетки поля засеять нельзя, второе семя тоже
+        other = ShopItem.objects.filter(is_seed=True).exclude(id=seed.id).first()
+        r2 = auth_client.post("/api/iso/plant-seed/", {
+            "building_id": field_id, "cell_row": 1, "cell_col": 1, "seed_id": other.id,
+        }, format="json")
+        assert r2.status_code == 400 and FarmPlot.objects.filter(building_id=field_id).count() == 1
 
         plot_id = r.data["plot"]["id"]
         assert auth_client.post("/api/iso/harvest/", {"plot_id": plot_id}, format="json").status_code == 400
@@ -78,7 +84,7 @@ class TestField:
         assert InventoryItem.objects.get(player=user.profile, item__slug="wheat_harvest").quantity == 2
         assert r.data["skill_level"] >= 0 and r.data["player_exp"] > 0
 
-        # клетку можно засеять снова
+        # после сбора поле можно засеять снова
         assert auth_client.post("/api/iso/plant-seed/", payload, format="json").status_code == 200
 
     def test_bad_params_return_400(self, auth_client, game_data):

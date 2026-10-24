@@ -241,22 +241,19 @@ def refresh_plot_statuses(profile: PlayerProfile) -> None:
     ).update(status="ready")
 
 
-def plant_seed(profile: PlayerProfile, user, building_id: int, cell_row: int, cell_col: int, seed_id: int) -> FarmPlot:
+def plant_seed(profile: PlayerProfile, user, building_id: int, seed_id: int) -> FarmPlot:
+    """Засеять поле целиком: одно поле — одна посадка — один тип урожая."""
     building = get_placement(profile, building_id)
     if building.building_type.slug != FARMING_FIELD_SLUG:
         raise GameError("Здание не является фермерским полем")
-    if not (0 <= cell_row < building.height and 0 <= cell_col < building.width):
-        raise GameError("Клетка вне зоны поля")
 
     try:
         seed = ShopItem.objects.get(id=seed_id, is_seed=True)
     except ShopItem.DoesNotExist:
         raise GameError("Семя не найдено", status=404)
 
-    if FarmPlot.objects.filter(
-        building=building, cell_row=cell_row, cell_col=cell_col, status__in=ACTIVE_PLOT_STATUSES
-    ).exists():
-        raise GameError("На этой клетке уже что-то растёт")
+    if FarmPlot.objects.filter(building=building, status__in=ACTIVE_PLOT_STATUSES).exists():
+        raise GameError("На поле уже что-то растёт")
 
     spend_coins(profile, seed.price_coins)
 
@@ -265,13 +262,10 @@ def plant_seed(profile: PlayerProfile, user, building_id: int, cell_row: int, ce
     seconds = farming_duration(base_seconds, skill_level(user, SKILL_FARMING), bt.speed_reduction(building.level))
     now = timezone.now()
 
-    # Старая собранная запись на той же клетке мешает unique_together
-    FarmPlot.objects.filter(
-        profile=profile, building=building, cell_row=cell_row, cell_col=cell_col
-    ).delete()
+    # Старая собранная запись мешает уникальности посадки на поле
+    FarmPlot.objects.filter(building=building).delete()
     return FarmPlot.objects.create(
-        profile=profile, building=building, cell_row=cell_row, cell_col=cell_col,
-        seed=seed, ready_at=now + timezone.timedelta(seconds=seconds), status="growing",
+        profile=profile, building=building, seed=seed, ready_at=now + timezone.timedelta(seconds=seconds), status="growing",
     )
 
 

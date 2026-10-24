@@ -207,20 +207,16 @@ class IsoMoveBuildingsBatchView(GameAPIView):
 class IsoPlantSeedView(GameAPIView):
     def post(self, request):
         building_id = int_param(request.data, "building_id")
-        cell_row = int_param(request.data, "cell_row")
-        cell_col = int_param(request.data, "cell_col")
         seed_id = int_param(request.data, "seed_id")
         with transaction.atomic():
             profile = lock_profile(request.user)
-            plot = field.plant_seed(profile, request.user, building_id, cell_row, cell_col, seed_id)
+            plot = field.plant_seed(profile, request.user, building_id, seed_id)
         return Response({
             "success": True,
             "coins_balance": profile.coins_balance,
             "plot": {
                 "id": plot.id,
                 "building_id": building_id,
-                "cell_row": cell_row,
-                "cell_col": cell_col,
                 "seed_id": seed_id,
                 "seed_name": plot.seed.name,
                 "planted_at": plot.planted_at.isoformat(),
@@ -263,8 +259,6 @@ class IsoFieldPlotsView(GameAPIView):
                 "id": p.id,
                 "building_id": p.building_id,
                 "building_slug": p.building.building_type.slug,
-                "cell_row": p.cell_row,
-                "cell_col": p.cell_col,
                 "seed_id": p.seed_id,
                 "seed_name": p.seed.name,
                 "planted_at": p.planted_at.isoformat() if p.planted_at else None,

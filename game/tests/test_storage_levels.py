@@ -95,7 +95,7 @@ class TestStorage:
         field = placement(player, "farming-field")
         seed = ShopItem.objects.get(slug="wheat")
         plot = FarmPlot.objects.create(
-            profile=player.profile, building=field, cell_row=0, cell_col=0, seed=seed,
+            profile=player.profile, building=field, seed=seed,
             ready_at=timezone.now() - timezone.timedelta(seconds=1), status="ready",
         )
         give(player, "wheat_harvest", 249)
@@ -183,7 +183,7 @@ class TestLevels:
         BuildingPlacement.objects.filter(id=field.id).update(level=6)  # +50% урожая, −15% времени
         seed = ShopItem.objects.get(slug="wheat")
         r = client.post("/api/iso/plant-seed/", {
-            "building_id": field.id, "cell_row": 0, "cell_col": 0, "seed_id": seed.id,
+            "building_id": field.id, "seed_id": seed.id,
         }, format="json")
         assert r.status_code == 200
         plot = FarmPlot.objects.get(id=r.data["plot"]["id"])

@@ -442,14 +442,10 @@ class PlayerBuildingAppearance(models.Model):
 class FarmPlot(models.Model):
     """
     Посаженная культура на фермерском поле.
-    Связано с BuildingPlacement (полем 2x2), но посадка идёт на конкретную клетку внутри.
+    Одно поле — одна посадка — один тип урожая: поле целиком засеивается одним семенем.
     """
     profile = models.ForeignKey(PlayerProfile, on_delete=models.CASCADE, related_name="farm_plots")
-    building = models.ForeignKey(BuildingPlacement, on_delete=models.CASCADE, related_name="plots")
-
-    # Позиция внутри здания (0..width-1, 0..height-1)
-    cell_row = models.PositiveIntegerField()  # относительно building.row
-    cell_col = models.PositiveIntegerField()  # относительно building.col
+    building = models.OneToOneField(BuildingPlacement, on_delete=models.CASCADE, related_name="plot")
 
     seed = models.ForeignKey(ShopItem, on_delete=models.CASCADE, limit_choices_to={"is_seed": True})
     planted_at = models.DateTimeField(auto_now_add=True)
@@ -469,14 +465,12 @@ class FarmPlot(models.Model):
     )
 
     class Meta:
-        unique_together = ("profile", "building", "cell_row", "cell_col")
         indexes = [
             models.Index(fields=["profile", "status"]),
-            models.Index(fields=["building", "cell_row", "cell_col"]),
         ]
 
     def __str__(self):
-        return f"FarmPlot({self.profile_id}:{self.seed.name}@{self.building_id}:{self.cell_row},{self.cell_col})"
+        return f"FarmPlot({self.profile_id}:{self.seed.name}@{self.building_id})"
 
 
 # =========================
