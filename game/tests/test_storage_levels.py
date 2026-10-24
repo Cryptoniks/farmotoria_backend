@@ -2,7 +2,9 @@
 import pytest
 from django.utils import timezone
 
-from game.models import BuildingPlacement, BuildingType, ExtractionProcess, FarmPlot, InventoryItem, ShopItem
+from game.models import (
+    BuildingPlacement, BuildingType, ExtractionProcess, FarmPlot, InventoryItem, Recipe, RecipeProcess, ShopItem,
+)
 from game.services.player import STARTING_BUILDINGS
 from game.services.skills import farming_duration, work_duration
 
@@ -176,6 +178,40 @@ class TestLevels:
         BuildingPlacement.objects.filter(id=barn.id).update(upgrade_finishes_at=timezone.now())
         client.get("/api/iso/field/")
         assert placement(player, "barn").level == 2
+
+    def test_no_upgrade_while_busy(self, new_player):
+        """Пока идёт процесс с таймером (посадка, добыча, производство), уровень здания не меняется."""
+        player, client = new_player
+        rich(player)
+        up = lambda pid: client.post("/api/iso/upgrade-building/", {"placement_id": pid}, format="json")
+
+        field = placement(player, "farming-field")
+        plot = FarmPlot.objects.create(
+            profile=player.profile, building=field, seed=ShopItem.objects.get(slug="wheat"),
+            ready_at=timezone.now() + timezone.timedelta(minutes=2), status="growing",
+        )
+        r = up(field.id)
+        assert r.status_code == 400 and "растёт" in r.data["detail"]
+        FarmPlot.objects.filter(id=plot.id).update(ready_at=timezone.now())
+        assert "соберите" in up(field.id).data["detail"]  # созрел, но не собран
+        assert client.post("/api/iso/harvest/", {"plot_id": plot.id}, format="json").status_code == 200
+        assert up(field.id).status_code == 200
+
+        hut = build(client, "lumberjack_hut", 20, 20).data["building"]["id"]
+        pid = client.post("/api/extraction/start/", {"building_id": hut}, format="json").data["process_id"]
+        assert "добыча" in up(hut).data["detail"]
+        client.post("/api/extraction/stop/", {"process_id": pid}, format="json")
+        assert up(hut).status_code == 200
+
+        mill = BuildingPlacement.objects.create(
+            profile=player.profile, building_type=BuildingType.objects.get(slug="mill"),
+            row=30, col=30, width=2, height=2, price_paid=0,
+        )
+        RecipeProcess.objects.create(
+            profile=player.profile, building=mill, recipe=Recipe.objects.filter(building_type__slug="mill").first(),
+            ready_at=timezone.now(), status="running",
+        )
+        assert "производство" in up(mill.id).data["detail"]
 
     def test_field_level_increases_yield_and_speed(self, new_player):
         player, client = new_player

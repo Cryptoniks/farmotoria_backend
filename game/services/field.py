@@ -203,6 +203,20 @@ def building_to_dict(p: BuildingPlacement) -> dict:
 
 
 # ------------------------------------------------------------- уровни ----
+def busy_reason(placement: BuildingPlacement) -> str | None:
+    """Почему здание сейчас занято (идёт процесс с таймером или продукция не забрана) — или None.
+    Пока здание занято, его нельзя улучшить: уровень меняет скорость и выход уже запущенного процесса."""
+    plot = FarmPlot.objects.filter(building=placement, status__in=ACTIVE_PLOT_STATUSES).first()
+    if plot:
+        ripe = plot.status == "ready" or (plot.ready_at and plot.ready_at <= timezone.now())
+        return "на поле созрел урожай — сначала соберите его" if ripe else "на поле растёт урожай — дождитесь и соберите его"
+    if ExtractionProcess.objects.filter(building=placement, status="running").exists():
+        return "идёт добыча — сначала остановите её"
+    if RecipeProcess.objects.filter(building=placement, status="running").exists():
+        return "идёт производство — дождитесь и заберите продукцию"
+    return None
+
+
 def finish_upgrades(profile: PlayerProfile) -> None:
     """Завершает улучшения по времени, срок которых прошёл (пока upgrade_seconds=0 — не используется)."""
     for p in BuildingPlacement.objects.filter(
@@ -223,6 +237,9 @@ def upgrade_building(profile: PlayerProfile, placement_id: int) -> tuple[Buildin
         raise GameError("Здание уже улучшается")
     if placement.level >= bt.max_level:
         raise GameError(f"Достигнут максимальный уровень ({bt.max_level})")
+    reason = busy_reason(placement)
+    if reason:
+        raise GameError(f"Нельзя улучшить: {reason}")
 
     price = bt.upgrade_price(placement.level)
     spend_coins(profile, price)
