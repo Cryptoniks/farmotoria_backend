@@ -197,7 +197,8 @@ class TestLevels:
 
 @pytest.mark.django_db
 class TestAppearance:
-    LOOK = {"c": 11, "r": 22, "d": 33}
+    LOOK = {"v": 2, "shape": 11, "details": 22, "colors": {"wall": "#C0392B", "roof": "#3e2723", "window": "#fafafa"}}
+    SAVED = {"v": 2, "shape": 11, "details": 22, "colors": {"wall": "#c0392b", "roof": "#3e2723", "window": "#fafafa"}}
 
     def post(self, client, slug, appearance):
         return client.post("/api/iso/building-appearance/", {"slug": slug, "appearance": appearance}, format="json")
@@ -209,14 +210,15 @@ class TestAppearance:
         r = self.post(client, "barn", self.LOOK)
         assert r.status_code == 200 and r.data["paid"] == 500 and r.data["coins_balance"] == before - 500
         state = client.get("/api/iso/field/").data
-        assert state["appearances"] == {"barn": self.LOOK} and state["appearance_price"] == 500
+        assert state["appearances"] == {"barn": self.SAVED} and state["appearance_price"] == 500  # цвета в нижнем регистре
 
-        r = self.post(client, "barn", {"c": 1, "r": 2, "d": 3})  # новая смена — снова 500
+        recolor = {"v": 2, "shape": 0, "details": 0, "colors": {"wall": "#123456", "roof": "#654321", "window": "#ffffff"}}
+        r = self.post(client, "barn", recolor)  # новая смена (перекраска исходной формы) — снова 500
         assert r.status_code == 200 and r.data["coins_balance"] == before - 1000
-        assert self.post(client, "barn", {"c": 1, "r": 2, "d": 3}).status_code == 400  # тот же вид
+        assert self.post(client, "barn", recolor).status_code == 400  # тот же вид
 
     def test_service_buildings_can_change_too(self, new_player):
-        player, client = new_player
+        _, client = new_player
         assert self.post(client, "shop", self.LOOK).status_code == 200
 
     def test_not_enough_coins(self, new_player):
@@ -235,9 +237,16 @@ class TestAppearance:
         assert r.status_code == 200 and r.data["paid"] == 0 and r.data["coins_balance"] == balance
         assert client.get("/api/iso/field/").data["appearances"] == {}
 
-    @pytest.mark.parametrize("bad", [{"c": 1}, {"c": 1, "r": 2, "d": -1}, {"c": "1", "r": 2, "d": 3},
-                                     {"c": True, "r": 2, "d": 3}, [1, 2, 3], {"c": 1, "r": 2, "d": 3, "x": 4},
-                                     {"c": 0, "r": 0, "d": 0}])
+    @pytest.mark.parametrize("bad", [
+        {"c": 1, "r": 2, "d": 3},                                              # старый формат v1
+        {"v": 1, "shape": 1, "details": 1, "colors": None},
+        {"v": 2, "shape": -1, "details": 1, "colors": None},
+        {"v": 2, "shape": True, "details": 1, "colors": None},
+        {"v": 2, "shape": 1, "details": 1, "colors": {"wall": "red", "roof": "#000000", "window": "#ffffff"}},
+        {"v": 2, "shape": 1, "details": 1, "colors": {"wall": "#000000", "roof": "#000000"}},
+        {"v": 2, "shape": 0, "details": 0, "colors": None},                    # стандартный вид — только бесплатный сброс
+        [1, 2, 3],
+    ])
     def test_validation(self, new_player, bad):
         _, client = new_player
         assert self.post(client, "barn", bad).status_code == 400

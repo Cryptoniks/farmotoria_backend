@@ -422,7 +422,8 @@ class PlayerBuildingAppearance(models.Model):
     """
     Внешний вид типа здания, выбранный игроком. Действует на все его здания этого типа,
     включая будущие. Нет записи — стандартный вид. Картинку по параметрам рисует фронтенд
-    (src/features/farm/buildingArt): {"c": цвета, "r": крыша, "d": детали} — зёрна генератора.
+    (src/features/farm/buildingArt): {"v": 2, "shape": зерно формы (0 — исходная), "details": зерно деталей,
+    "colors": {"wall", "roof", "window"} | null} — см. services/appearance.py.
     """
     profile = models.ForeignKey(PlayerProfile, on_delete=models.CASCADE, related_name="building_appearances")
     building_type = models.ForeignKey(BuildingType, on_delete=models.CASCADE, related_name="appearances")
