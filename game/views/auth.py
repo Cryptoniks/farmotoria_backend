@@ -35,6 +35,7 @@ class MeView(GameAPIView):
             "id": request.user.id,
             "username": request.user.username,
             "email": request.user.email,
+            "date_joined": request.user.date_joined,
             "coins_balance": profile.coins_balance,
             "level": profile.level,
             "exp": profile.exp,
